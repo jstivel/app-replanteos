@@ -115,10 +115,11 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
 
     //region Métodos de la interfaz MainContract.View (implementaciones que el Presenter llama)
 
+
     override fun showLocationText(text: String) {
         textViewLocationDisplay.text = text
+        textViewLocationDisplay.isVisible = true // <-- Asegúrate de que esto esté aquí
     }
-
     override fun enableCaptureButton(enable: Boolean) {
         cameraCaptureButton.isEnabled = enable
     }
@@ -132,16 +133,6 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         imageViewThumbnail.isVisible = false
     }
 
-    override fun showFlashEffect() {
-        viewFlashEffect.apply {
-            alpha = 0.9f
-            isVisible = true
-            animate()
-                .alpha(0f)
-                .setDuration(200L)
-                .withEndAction { isVisible = false }
-        }
-    }
 
     override fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
@@ -173,6 +164,24 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
     }
 
     //endregion
+    override fun showFlashEffect() {
+        viewFlashEffect.apply {
+            alpha = 0.9f
+            isVisible = true
+            animate().alpha(0f).setDuration(200L).withEndAction { isVisible = false }
+        }
+    }
+
+    override fun hideFlashEffect() { // <-- ¡Nuevo método!
+        viewFlashEffect.isVisible = false
+        viewFlashEffect.alpha = 0f // Asegurarse de que esté completamente transparente
+    }
+
+
+
+    override fun hideLocationText() { // <-- ¡Nuevo método!
+        textViewLocationDisplay.isVisible = false
+    }
 
     // Puedes dejar esta constante aquí o moverla a un Companion object del Presenter si es más lógica de Presenter.
     companion object {

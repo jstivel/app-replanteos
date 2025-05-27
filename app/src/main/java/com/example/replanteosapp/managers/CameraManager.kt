@@ -4,6 +4,7 @@ package com.example.replanteosapp.managers
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -27,7 +28,11 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
     private var cameraProvider: ProcessCameraProvider? = null
     private var cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var imageCaptureCallback: ImageCaptureCallback? = null
 
+    fun setImageCaptureCallback(callback: ImageCaptureCallback) {
+        this.imageCaptureCallback = callback
+    }
     // No necesitas el 'display' lazy si solo lo usas para setTargetRotation una vez en takePhoto
     // val display: Display? by lazy { ... }
 
@@ -45,8 +50,11 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
 
             // Aquí debes usar el display.rotation del previewView, no del WindowManager
             // ya que CameraX lo gestiona internamente para la Preview
+
             imageCapture = ImageCapture.Builder()
-                .setTargetRotation(previewView.display.rotation) // Usa la rotación del PreviewView
+                // Asegúrate de que el ratio de captura coincida con tu PreviewView si quieres fidelidad total
+                .setTargetAspectRatio(AspectRatio.RATIO_4_3) // O AspectRatio.RATIO_16_9, o AspectRatio.RATIO_16_9
+                .setTargetRotation(previewView.display.rotation)
                 .build()
 
             try {

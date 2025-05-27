@@ -1,103 +1,116 @@
+// app/src/main/java/com/example/replanteosapp/managers/TextOverlayManager.kt
 package com.example.replanteosapp.managers
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
-import android.text.Layout
-import android.text.StaticLayout
-import android.text.TextPaint
 import com.example.replanteosapp.data.LocationData
 import com.example.replanteosapp.data.TextOverlayConfig
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 class TextOverlayManager {
 
-    fun drawTextOverlay(
-        bitmap: Bitmap,
-        locationData: LocationData?,
-        config: TextOverlayConfig
-    ): Bitmap {
-        val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+    fun formatLocationText(locationData: LocationData, config: TextOverlayConfig): String {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
+        val latitude = "Lat: %.6f".format(Locale.US, locationData.latitude)
+        val longitude = "Lon: %.6f".format(Locale.US, locationData.longitude)
+        val accuracy = "Precisión: ±%.0fm".format(locationData.accuracy ?: 0f)
+        val date = "Fecha: ${dateFormat.format(Date(locationData.timestamp))}"
+        val time = "Hora: ${timeFormat.format(Date(locationData.timestamp))}"
+        val city = if (locationData.city.isNotEmpty()) "Ciudad: ${locationData.city}" else ""
+        val address = if (locationData.address.isNotEmpty()) "Dirección: ${locationData.address}" else ""
+
+        val builder = StringBuilder()
+        builder.append(latitude).append(", ").append(longitude)
+        builder.append("\n").append(accuracy)
+        builder.append("\n").append(date)
+        builder.append("\n").append(time)
+        if (city.isNotEmpty()) builder.append("\n").append(city)
+        if (address.isNotEmpty()) builder.append("\n").append(address)
+        if (config.enableNote && config.noteText.isNotBlank()) {
+            builder.append("\nNota: ").append(config.noteText)
+        }
+        return builder.toString()
+    }
+
+    fun drawTextOverlay(originalBitmap: Bitmap, locationData: LocationData?, config: TextOverlayConfig): Bitmap {
+        val mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(mutableBitmap)
 
-        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
-        textPaint.textSize = config.textSize * canvas.density // Convierte SP a PX
-        textPaint.color = config.textColor
-        textPaint.alpha = (config.textAlpha * 255).toInt()
-        textPaint.typeface = Typeface.DEFAULT_BOLD // Opcional: negrita
-        // textPaint.setShadowLayer(1f, 0f, 0f, Color.BLACK); // Opcional: sombra para mejor visibilidad
-
-        val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        if (config.enableBackground && config.backgroundColor != null) {
-            backgroundPaint.color = config.backgroundColor!!
-            backgroundPaint.alpha = (config.backgroundAlpha * 255).toInt()
-        } else {
-            backgroundPaint.color = Color.TRANSPARENT
+        if (locationData == null) {
+            return mutableBitmap
         }
 
-        // Construir el texto de ubicación
-        val locationText = locationData?.let {
-            val latLon = "Lat: %.6f, Lon: %.6f".format(Locale.US, it.latitude, it.longitude)
-            val accuracy = "Precisión: ±%.0fm".format(it.accuracy ?: 0f)
-            val dateTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(it.timestamp))
-            val city = if (it.city.isNotEmpty()) "Ciudad: ${it.city}" else ""
-            val address = if (it.address.isNotEmpty()) "Dirección: ${it.address}" else ""
+        val textToDraw = formatLocationText(locationData, config)
 
-            val sb = StringBuilder()
-            sb.append(latLon)
-            sb.append("\n").append(accuracy)
-            sb.append("\nFecha: ").append(dateTime.substringBefore(" "))
-            sb.append("\nHora: ").append(dateTime.substringAfter(" "))
-            if (city.isNotEmpty()) sb.append("\n").append(city)
-            if (address.isNotEmpty()) sb.append("\n").append(address)
-
-            if (config.enableNote && config.noteText.isNotBlank()) {
-                sb.append("\nNota: ").append(config.noteText)
-            }
-            sb.toString()
-        } ?: "Ubicación no disponible"
-
-        // Calcular el ancho máximo del texto (por ejemplo, el 80% del ancho del bitmap)
-        val textWidth = (bitmap.width * 0.8).toInt()
-
-        // Usar StaticLayout para manejar saltos de línea automáticos
-        val staticLayout = StaticLayout.Builder.obtain(
-            locationText,
-            0,
-            locationText.length,
-            textPaint,
-            textWidth
-        )
-            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(0f, 1f)
-            .setIncludePad(false)
-            .build()
-
-        // Posición del texto (por ejemplo, en la esquina superior izquierda con un margen)
-        val padding = 20f
-        val x = padding
-        val y = padding
-
-        // Dibujar el fondo si está habilitado
-        if (config.enableBackground && config.backgroundColor != null) {
-            canvas.drawRect(
-                x - padding/2, // Ajusta un poco para que el fondo sea más grande que el texto
-                y - padding/2,
-                x + staticLayout.width + padding/2,
-                y + staticLayout.height + padding/2,
-                backgroundPaint
-            )
+        val textPaint = Paint().apply {
+            color = Color.WHITE
+            // Ajusta el tamaño del texto. Un buen punto de partida es relativo al ancho de la imagen.
+            // Probemos con un tamaño un poco más pequeño para empezar a 30f.
+            textSize = mutableBitmap.width / 30f // Ajuste dinámico del tamaño de fuente
+            typeface = Typeface.DEFAULT_BOLD
+            isAntiAlias = true
+            setShadowLayer(2f, 1f, 1f, Color.BLACK) // Sombra suave para que el texto sea legible
         }
 
-        // Dibujar el texto
-        canvas.save()
-        canvas.translate(x, y)
-        staticLayout.draw(canvas)
-        canvas.restore()
+        val lines = textToDraw.split("\n")
+
+        // Calcular la altura real de una línea de texto (sin espacio adicional)
+        val fontMetrics = textPaint.fontMetrics
+        val lineHeight = fontMetrics.bottom - fontMetrics.top // Altura de la línea
+
+        // Calcular el ancho máximo de las líneas de texto
+        var maxLineWidth = 0f
+        for (line in lines) {
+            maxLineWidth = max(maxLineWidth, textPaint.measureText(line))
+        }
+
+        // Padding dinámico basado en el ancho de la imagen (por ejemplo, 2% del ancho)
+        val padding = mutableBitmap.width * 0.02f
+
+        // Pintura para el fondo del texto (semitransparente negro)
+        val backgroundPaint = Paint().apply {
+            color = Color.parseColor("#80000000") // ARGB: 80 = 50% de opacidad, 000000 = negro
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
+        // 1. Calcular el ancho total del área del texto (incluyendo padding)
+        val totalTextDisplayWidth = maxLineWidth + (padding * 2)
+
+        // 2. Calcular la altura total del área del texto (incluyendo padding)
+        // Usamos fontMetrics.leading para el interlineado natural
+        val totalTextDisplayHeight = (lines.size * (lineHeight + fontMetrics.leading)) + (padding * 2)
+
+        // 3. Calcular las coordenadas para el rectángulo de fondo
+        // Centrar horizontalmente: (ancho_canvas - ancho_fondo) / 2
+        val backgroundRectLeft = (canvas.width - totalTextDisplayWidth) / 2
+        val backgroundRectTop = canvas.height - totalTextDisplayHeight // Anclado a la parte inferior
+        val backgroundRectRight = backgroundRectLeft + totalTextDisplayWidth
+        val backgroundRectBottom = canvas.height.toFloat() // Llega hasta el borde inferior de la imagen
+
+        // Dibuja el fondo del texto
+        canvas.drawRect(backgroundRectLeft, backgroundRectTop, backgroundRectRight, backgroundRectBottom, backgroundPaint)
+
+        // 4. Calcular las coordenadas Y para dibujar el texto
+        // La primera línea de texto se dibuja desde la parte superior del fondo + padding
+        var currentTextY = backgroundRectTop + padding + (-fontMetrics.top) // Ajuste para la altura del texto
+
+        // Dibuja cada línea de texto
+        for (line in lines) {
+            // Centrar cada línea de texto horizontalmente dentro del área del fondo
+            val textX = backgroundRectLeft + (totalTextDisplayWidth - textPaint.measureText(line)) / 2
+            canvas.drawText(line, textX, currentTextY, textPaint)
+            currentTextY += (lineHeight + fontMetrics.leading) // Mueve hacia abajo para la siguiente línea
+        }
 
         return mutableBitmap
     }

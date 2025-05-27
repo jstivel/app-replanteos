@@ -1,7 +1,7 @@
-// app/src/main/java/com/example/replanteosapp/services/ImageProcessor.kt
 package com.example.replanteosapp.services
 
 import android.content.ContentResolver
+import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
@@ -10,22 +10,24 @@ import android.graphics.RectF
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
-import androidx.camera.core.ImageProxy // <-- Nueva importación
+import androidx.camera.core.ImageProxy // <-- ¡Importación crucial!
 import com.example.replanteosapp.data.LocationData
 import com.example.replanteosapp.data.TextOverlayConfig
 import com.example.replanteosapp.managers.TextOverlayManager
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
-import java.nio.ByteBuffer
+import java.nio.ByteBuffer // <-- ¡Importación crucial!
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class ImageProcessor(private val contentResolver: ContentResolver) {
 
-    private val textOverlayManager = TextOverlayManager()
+    private val textOverlayManager = TextOverlayManager() // Esto está bien ahora, TextOverlayManager no necesita Context
 
-    // MODIFICADO: Ahora recibe un ImageProxy
+    // MODIFICADO: Ahora recibe un ImageProxy. ESTA ES LA CLAVE.
     fun processAndSaveImage(
-        imageProxy: ImageProxy, // Recibe el ImageProxy directamente
+        imageProxy: ImageProxy, // <--- EL PARÁMETRO DEBE SER ImageProxy
         locationData: LocationData?,
         textOverlayConfig: TextOverlayConfig
     ): Uri? {
@@ -34,6 +36,7 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
             val originalBitmap = imageProxyToBitmap(imageProxy)
                 ?: throw IOException("No se pudo convertir ImageProxy a Bitmap.")
 
+            // La rotación basada en imageProxy.imageInfo.rotationDegrees es correcta
             val rotatedBitmap = rotateBitmap(originalBitmap, imageProxy.imageInfo.rotationDegrees)
 
             // Dibuja el texto de ubicación en el bitmap
@@ -64,7 +67,8 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
             return null
         } finally {
             // ¡MUY IMPORTANTE! Cerrar el ImageProxy cuando hayas terminado con él.
-            imageProxy.close()
+            // Esta llamada libera los recursos de memoria.
+            imageProxy.close() // <--- ASEGURARSE DE QUE ESTO SE EJECUTE
             outputStream?.close()
         }
     }
@@ -93,6 +97,24 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
         val newHeight = rotatedRect.height().toInt()
 
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
+    // Esta función no se llama en el flujo principal, es solo para depuración si la necesitas
+    private fun saveBitmapToTempFile(bitmap: Bitmap, prefix: String): Uri? {
+        val name = prefix + SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis())
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "$name.jpg")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/DEBUG_ReplanteosApp") // Directorio separado para depuración
+        }
+
+        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val uri = contentResolver.insert(collection, contentValues)
+        return uri?.also {
+            contentResolver.openOutputStream(it)?.use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+            }
+        }
     }
 
     companion object {

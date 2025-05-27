@@ -21,6 +21,9 @@ interface MainContract {
         fun showPermissionsDeniedMessage()
         fun updateSettingsButtonState(enabled: Boolean)
 
+        fun hideFlashEffect()
+        fun hideLocationText()
+
     }
 
     // Define lo que el PRESENTER (MainPresenter) debe poder hacer.

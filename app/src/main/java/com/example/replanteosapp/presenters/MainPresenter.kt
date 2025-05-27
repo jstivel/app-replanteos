@@ -1,12 +1,15 @@
+// app/src/main/java/com/example/replanteosapp/presenters/MainPresenter.kt
 package com.example.replanteosapp.presenters
 
 import android.app.Activity
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import androidx.camera.view.PreviewView
 import com.example.replanteosapp.data.LocationData
 import com.example.replanteosapp.data.TextOverlayConfig
 import com.example.replanteosapp.managers.CameraManager
-import com.example.replanteosapp.managers.ImageCaptureCallback
 import com.example.replanteosapp.managers.LocationTracker
 import com.example.replanteosapp.managers.LocationUpdateCallback
 import com.example.replanteosapp.managers.PermissionManager
@@ -18,10 +21,6 @@ import com.example.replanteosapp.services.ImageProcessor
 import com.example.replanteosapp.managers.TextOverlayManager
 import com.example.replanteosapp.ui.MainActivity
 import com.example.replanteosapp.ui.SettingsDialogFragment
-import androidx.camera.view.PreviewView
-import android.os.Handler
-import android.os.Looper
-
 import com.google.android.gms.common.api.ResolvableApiException
 
 class MainPresenter(
@@ -36,19 +35,14 @@ class MainPresenter(
 
     private var lastKnownLocationData: LocationData? = null
     private var currentTextOverlayConfig: TextOverlayConfig = TextOverlayConfig()
-
     private lateinit var photoWorkflowManager: PhotoWorkflowManager
 
     init {
         photoWorkflowManager = PhotoWorkflowManager(cameraManager, locationTracker, imageProcessor)
         photoWorkflowManager.setTextOverlayConfig(currentTextOverlayConfig)
-
         setupManagerCallbacks()
     }
-    override fun startCamera(previewView: PreviewView) {
-        // Le delegamos al CameraManager la tarea de iniciar la cámara con el PreviewView
-        cameraManager.startCamera(previewView)
-    }
+
     private fun setupManagerCallbacks() {
         locationTracker.setLocationUpdateCallback(object : LocationUpdateCallback {
             override fun onLocationReceived(locationData: LocationData) {
@@ -64,7 +58,7 @@ class MainPresenter(
             }
 
             override fun onLocationError(errorMessage: String) {
-                Log.e(TAG, "Error de ubicación en Presenter: $errorMessage") // TAG ahora accesible aquí
+                Log.e(TAG, "Error de ubicación en Presenter: $errorMessage")
                 lastKnownLocationData = null
                 view?.enableCaptureButton(false)
                 view?.showLocationText("Error de ubicación: $errorMessage")
@@ -86,6 +80,8 @@ class MainPresenter(
                 Handler(Looper.getMainLooper()).post {
                     view?.showToast("Foto guardada con ubicación.")
                     view?.showThumbnail(imageUri)
+                    // ASEGURAMOS QUE EL TEXTO DE UBICACIÓN SE VUELVA A MOSTRAR AQUÍ
+                    updateLocationDisplayText(locationData) // Usa la ubicación de la foto si disponible, sino la última conocida.
                     Log.i(TAG, "Flujo de foto completado exitosamente.")
                 }
             }
@@ -94,21 +90,22 @@ class MainPresenter(
                 Handler(Looper.getMainLooper()).post {
                     view?.showToast("Error en el procesamiento de la foto: $errorMessage")
                     view?.hideThumbnail()
+                    // ASEGURAMOS QUE EL TEXTO DE UBICACIÓN SE VUELVA A MOSTRAR AQUÍ
+                    updateLocationDisplayText(lastKnownLocationData) // Si hubo error, usa la última ubicación conocida
                     Log.e(TAG, "Error en el flujo de foto: $errorMessage")
                 }
             }
-
             override fun onLocationUnavailableForPhoto(imageUri: Uri) {
                 Handler(Looper.getMainLooper()).post {
-                    view?.showToast("Foto guardada, pero sin ubicación (o error al dibujar texto).")
+                    view?.showToast("Foto guardada, pero sin ubicación en la imagen.")
                     view?.showThumbnail(imageUri)
-                    Log.w(TAG, "Flujo de foto completado, pero sin datos de ubicación o error al dibujar texto.")
+                    updateLocationDisplayText(lastKnownLocationData) // Vuelve a mostrar la última ubicación conocida
+                    Log.w(TAG, "Foto guardada, pero la ubicación no pudo ser dibujada.")
                 }
             }
+
         })
     }
-
-    //region Métodos del ciclo de vida de la Vista (llamados por MainActivity)
 
     override fun onViewCreated() {
         permissionManager.requestPermissions(object : PermissionResultCallback {
@@ -138,28 +135,30 @@ class MainPresenter(
         cameraManager.shutdown()
     }
 
-    //endregion
-
-    //region Métodos de eventos de UI (llamados por MainActivity)
-
     override fun onCaptureButtonClick() {
         if (lastKnownLocationData == null) {
             view?.showToast("Esperando ubicación para tomar foto.")
             return
         }
+
+        view?.hideLocationText() // Ocultar el texto de ubicación
         view?.showFlashEffect()
+
+        // 3. Pasa la configuración actual al PhotoWorkflowManager
         photoWorkflowManager.setTextOverlayConfig(currentTextOverlayConfig)
+
+        // 4. Inicia el flujo de captura de la foto
         photoWorkflowManager.executePhotoCaptureWorkflow(lastKnownLocationData)
     }
 
     override fun onLocationSettingsResolutionResult(resultCode: Int) {
         when (resultCode) {
             Activity.RESULT_OK -> {
-                Log.d(TAG, "Usuario aceptó los cambios de configuración de ubicación.") // TAG ahora accesible aquí
+                Log.d(TAG, "Usuario aceptó los cambios de configuración de ubicación.")
                 locationTracker.startLocationUpdates(false)
             }
             Activity.RESULT_CANCELED -> {
-                Log.w(TAG, "Usuario denegó los cambios de configuración de ubicación.") // TAG ahora accesible aquí
+                Log.w(TAG, "Usuario denegó los cambios de configuración de ubicación.")
                 view?.showToast("La ubicación no está disponible.")
                 view?.showLocationText("Ubicación no disponible.")
             }
@@ -196,9 +195,10 @@ class MainPresenter(
         updateLocationDisplayText(lastKnownLocationData)
     }
 
-    //endregion
+    override fun startCamera(previewView: PreviewView) {
+        cameraManager.startCamera(previewView)
+    }
 
-    // Helper method para formatear y mostrar el texto de ubicación
     private fun updateLocationDisplayText(locationData: LocationData?) {
         locationData?.let {
             val locationText = "Lat: %.6f, Lon: %.6f".format(java.util.Locale.US, it.latitude, it.longitude)
@@ -218,13 +218,15 @@ class MainPresenter(
             if (currentTextOverlayConfig.enableNote && currentTextOverlayConfig.noteText.isNotBlank()) {
                 displayText.append("\nNota: ").append(currentTextOverlayConfig.noteText)
             }
-            view?.showLocationText(displayText.toString())
+            view?.showLocationText(displayText.toString()) // <-- ESTO DEBERÍA HACERLO VISIBLE
         } ?: run {
+            // Si locationData es null, muestra un mensaje predeterminado y asegúrate de que sea visible
             view?.showLocationText("Obteniendo ubicación...")
+            view?.enableCaptureButton(false) // Deshabilita el botón si no hay ubicación
         }
     }
 
     companion object {
-        private const val TAG = "MainPresenter" // El TAG está correctamente aquí
+        private const val TAG = "MainPresenter"
     }
 }

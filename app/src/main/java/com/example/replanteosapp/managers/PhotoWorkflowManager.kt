@@ -3,6 +3,7 @@ package com.example.replanteosapp.managers
 
 import android.net.Uri
 import android.util.Log
+import androidx.camera.core.ImageProxy
 import com.example.replanteosapp.data.LocationData
 import com.example.replanteosapp.data.TextOverlayConfig
 import com.example.replanteosapp.services.ImageProcessor
@@ -25,25 +26,21 @@ class PhotoWorkflowManager(
     }
 
     fun executePhotoCaptureWorkflow(locationData: LocationData?) {
-        // Asegúrate de que CameraManager esté configurado con el callback adecuado
-        // para que solo tome la foto una vez y luego notifique aquí.
-        cameraManager.setImageCaptureCallback(object : ImageCaptureCallback {
-            override fun onImageCaptured(imageUri: Uri) {
-                Log.d(TAG, "Foto capturada: $imageUri. Procesando...")
+        // CORRECCIÓN: Aquí es donde pasamos el callback al takePhoto de CameraManager
+        cameraManager.takePhoto(object : ImageCaptureCallback {
+            override fun onImageCaptured(image: ImageProxy) { // <-- Ahora recibe ImageProxy
+                Log.d(TAG, "ImageProxy capturada. Procesando...")
                 // Iniciar procesamiento de imagen aquí
                 val processedImageUri = imageProcessor.processAndSaveImage(
-                    originalImageUri = imageUri,
-                    locationData = locationData, // Pasa los datos de ubicación
-                    textOverlayConfig = currentTextOverlayConfig // Pasa la configuración actual
+                    imageProxy  = image, // <--- Pasar el ImageProxy
+                    locationData = locationData,
+                    textOverlayConfig = currentTextOverlayConfig
                 )
 
-                // Eliminar la imagen original no procesada si CameraManager la guardó
-                // Ojo: CameraX puede borrarla por si mismo o no, dependiendo de la configuración.
-                // Si la imagen original no procesada persiste, puedes eliminarla aquí
-                // si no es la URI final de la imagen procesada.
-                // Asegúrate de que originalImageUri NO sea la misma que processedImageUri
-                // Si ImageProcessor guarda una nueva, puedes borrar la original aquí.
-                // cameraManager.deleteOriginalImage(imageUri) // Si tienes un método para borrar la URI original
+                // CERRAR EL IMAGEPROXY DESPUÉS DE PROCESARLO
+                // Es crucial llamar a image.close() para liberar los recursos.
+                // ImageProcessor debería manejar esto, pero si no lo hace, asegúrate aquí.
+                image.close()
 
                 if (processedImageUri != null) {
                     workflowCallback?.onPhotoProcessed(processedImageUri, locationData)
@@ -58,8 +55,9 @@ class PhotoWorkflowManager(
             }
         })
 
-        // Aquí es donde el CameraManager toma la foto. SOLO DEBE LLAMARSE UNA VEZ.
-        cameraManager.takePhoto()
+        // ELIMINA ESTA LÍNEA si estaba repetida: cameraManager.takePhoto()
+        // No necesitas llamar a cameraManager.setImageCaptureCallback() por separado aquí
+        // porque ya se lo pasas directamente a takePhoto.
     }
 
     companion object {
