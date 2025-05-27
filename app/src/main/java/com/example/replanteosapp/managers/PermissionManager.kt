@@ -9,11 +9,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 
-// Interface para el resultado de los permisos
-interface PermissionResultCallback {
-    fun onPermissionsGranted()
-    fun onPermissionsDenied(deniedPermissions: List<String>)
-}
+
 
 class PermissionManager(private val activity: FragmentActivity) {
 

@@ -17,13 +17,7 @@ import com.google.android.gms.location.*
 import com.google.android.gms.tasks.Task
 import java.util.concurrent.TimeUnit
 
-// Interfaz para el resultado de los permisos
-interface LocationUpdateCallback {
-    fun onLocationReceived(locationData: LocationData)
-    fun onLocationError(errorMessage: String)
-    fun onPermissionsDenied()
-    fun onLocationSettingsResolutionRequired(resolvableApiException: ResolvableApiException)
-}
+
 
 // Interfaz para los callbacks de geocodificación
 interface GeocodingCallback {

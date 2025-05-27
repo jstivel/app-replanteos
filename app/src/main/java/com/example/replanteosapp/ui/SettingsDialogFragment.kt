@@ -14,12 +14,14 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
-import com.example.replanteosapp.R
-import com.example.replanteosapp.data.TextOverlayConfig // Importar la clase de configuración
-import com.example.replanteosapp.MainActivity // Para llamar a updateTextOverlayConfig
+import com.example.replanteosapp.R // Importar la clase R
+import com.example.replanteosapp.data.TextOverlayConfig
+import com.example.replanteosapp.presenters.SettingsContract // Importar el contrato
+import com.example.replanteosapp.presenters.SettingsPresenter // Importar el Presenter
 
-class SettingsDialogFragment(private var currentConfig: TextOverlayConfig) : DialogFragment() {
+class SettingsDialogFragment(private val initialConfig: TextOverlayConfig) : DialogFragment(), SettingsContract.View {
 
+    // Referencias a Vistas UI
     private lateinit var textSizeSeekBar: SeekBar
     private lateinit var textSizeValue: TextView
     private lateinit var textAlphaSeekBar: SeekBar
@@ -37,8 +39,19 @@ class SettingsDialogFragment(private var currentConfig: TextOverlayConfig) : Dia
     private lateinit var backgroundColorBlack: Button
     private lateinit var backgroundColorTransparent: Button
 
-    // Guardar los cambios temporales aquí
-    private var tempConfig: TextOverlayConfig = currentConfig.copy()
+    // Referencia al Presenter
+    private lateinit var presenter: SettingsContract.Presenter
+
+    // Listener para comunicar el resultado de vuelta a MainPresenter
+    private var listener: SettingsDialogListener? = null
+
+    interface SettingsDialogListener {
+        fun onSettingsSaved(newConfig: TextOverlayConfig)
+    }
+
+    fun setListener(listener: SettingsDialogListener) {
+        this.listener = listener
+    }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val dialog = super.onCreateDialog(savedInstanceState)
@@ -52,7 +65,7 @@ class SettingsDialogFragment(private var currentConfig: TextOverlayConfig) : Dia
     ): View? {
         val view = inflater.inflate(R.layout.dialog_settings, container, false)
 
-        // Inicializar vistas
+        // 1. Inicialización de Vistas
         textSizeSeekBar = view.findViewById(R.id.textSizeSeekBar)
         textSizeValue = view.findViewById(R.id.textSizeValue)
         textAlphaSeekBar = view.findViewById(R.id.textAlphaSeekBar)
@@ -70,16 +83,17 @@ class SettingsDialogFragment(private var currentConfig: TextOverlayConfig) : Dia
         backgroundColorBlack = view.findViewById(R.id.backgroundColorBlack)
         backgroundColorTransparent = view.findViewById(R.id.backgroundColorTransparent)
 
+        // 2. Inicialización del Presenter
+        presenter = SettingsPresenter(this, initialConfig) // Pasa la Vista y la configuración inicial
 
-        // Cargar y aplicar la configuración actual
-        loadConfigToUI(tempConfig)
+        // 3. Cargar la configuración inicial a la UI (usando el Presenter)
+        // El Presenter le dirá a la Vista qué mostrar al inicio.
+        loadConfigToUI(presenter.getCurrentConfig()) // La vista pregunta al presenter por la config
 
-        // Configurar listeners de SeekBar
+        // 4. Configurar Listeners (DELEGANDO AL PRESENTER)
         textSizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Rango de 10sp a 30sp
-                tempConfig.textSize = 10f + (progress / 100f) * 20f // Calcula el tamaño en SP
-                textSizeValue.text = "Tamaño: %.1fsp".format(tempConfig.textSize)
+                presenter.onTextSizeChanged(progress)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -87,8 +101,7 @@ class SettingsDialogFragment(private var currentConfig: TextOverlayConfig) : Dia
 
         textAlphaSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tempConfig.textAlpha = progress / 100f
-                textAlphaValue.text = "Transparencia Texto: %d%%".format((tempConfig.textAlpha * 100).toInt())
+                presenter.onTextAlphaChanged(progress)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -96,74 +109,90 @@ class SettingsDialogFragment(private var currentConfig: TextOverlayConfig) : Dia
 
         backgroundAlphaSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tempConfig.backgroundAlpha = progress / 100f
-                backgroundAlphaValue.text = "Transparencia Fondo: %d%%".format((tempConfig.backgroundAlpha * 100).toInt())
+                presenter.onBackgroundAlphaChanged(progress)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // Configurar listeners de CheckBox
         enableBackgroundCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            tempConfig.enableBackground = isChecked
-            backgroundAlphaSeekBar.isEnabled = isChecked // Habilitar/deshabilitar SeekBar de fondo
-            backgroundColorBlack.isEnabled = isChecked
-            backgroundColorTransparent.isEnabled = isChecked
+            presenter.onEnableBackgroundChecked(isChecked)
         }
 
         enableNoteCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            tempConfig.enableNote = isChecked
-            noteEditText.isEnabled = isChecked
+            presenter.onEnableNoteChecked(isChecked)
         }
 
-        // Configurar listener de EditText para la nota
         noteEditText.doAfterTextChanged { editable ->
-            tempConfig.noteText = editable.toString()
+            presenter.onNoteTextChanged(editable.toString())
         }
 
-        // Configurar listeners de botones de color
-        textColorWhite.setOnClickListener { tempConfig.textColor = Color.WHITE }
-        textColorBlack.setOnClickListener { tempConfig.textColor = Color.BLACK }
-        backgroundColorBlack.setOnClickListener { tempConfig.backgroundColor = Color.parseColor("#80000000") } // Negro semi-transparente
-        backgroundColorTransparent.setOnClickListener { tempConfig.backgroundColor = null } // Sin color de fondo específico
+        textColorWhite.setOnClickListener { presenter.onTextColorSelected(Color.WHITE) }
+        textColorBlack.setOnClickListener { presenter.onTextColorSelected(Color.BLACK) }
+        backgroundColorBlack.setOnClickListener { presenter.onBackgroundColorSelected(Color.parseColor("#80000000")) } // Color negro con 50% de alfa
+        backgroundColorTransparent.setOnClickListener { presenter.onBackgroundColorSelected(null) } // null para transparente
 
-        // Configurar botones de acción
-        saveButton.setOnClickListener {
-            // Notificar a MainActivity con la nueva configuración
-            (activity as? MainActivity)?.updateTextOverlayConfig(tempConfig)
-            dismiss() // Cerrar el diálogo
-        }
-
-        cancelButton.setOnClickListener {
-            dismiss() // Cerrar el diálogo sin guardar cambios
-        }
+        saveButton.setOnClickListener { presenter.onSaveButtonClick() }
+        cancelButton.setOnClickListener { presenter.onCancelButtonClick() }
 
         return view
     }
 
-    private fun loadConfigToUI(config: TextOverlayConfig) {
-        // Cargar tamaño de texto (mapeo inverso: SP a SeekBar progress)
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // Notificar al Presenter que la Vista se está destruyendo
+        presenter.detachView()
+    }
+
+    //region Métodos de la interfaz SettingsContract.View (implementaciones que el Presenter llama)
+
+    override fun loadConfigToUI(config: TextOverlayConfig) {
         textSizeSeekBar.progress = ((config.textSize - 10f) / 20f * 100).toInt().coerceIn(0, 100)
-        textSizeValue.text = "Tamaño: %.1fsp".format(config.textSize)
+        updateTextSizeValue("Tamaño: %.1fsp".format(config.textSize))
 
-        // Cargar transparencia de texto
         textAlphaSeekBar.progress = (config.textAlpha * 100).toInt()
-        textAlphaValue.text = "Transparencia Texto: %d%%".format((config.textAlpha * 100).toInt())
+        updateTextAlphaValue("Transparencia Texto: %d%%".format((config.textAlpha * 100).toInt()))
 
-        // Cargar transparencia de fondo
         backgroundAlphaSeekBar.progress = (config.backgroundAlpha * 100).toInt()
-        backgroundAlphaValue.text = "Transparencia Fondo: %d%%".format((config.backgroundAlpha * 100).toInt())
+        updateBackgroundAlphaValue("Transparencia Fondo: %d%%".format((config.backgroundAlpha * 100).toInt()))
 
-        // Cargar estado de fondo y nota
         enableBackgroundCheckbox.isChecked = config.enableBackground
-        backgroundAlphaSeekBar.isEnabled = config.enableBackground // Habilitar/deshabilitar
-        backgroundColorBlack.isEnabled = config.enableBackground
-        backgroundColorTransparent.isEnabled = config.enableBackground
+        enableBackgroundControls(config.enableBackground)
 
         enableNoteCheckbox.isChecked = config.enableNote
-        noteEditText.isEnabled = config.enableNote
+        enableNoteControls(config.enableNote)
         noteEditText.setText(config.noteText)
     }
+
+    override fun updateTextSizeValue(value: String) {
+        textSizeValue.text = value
+    }
+
+    override fun updateTextAlphaValue(value: String) {
+        textAlphaValue.text = value
+    }
+
+    override fun updateBackgroundAlphaValue(value: String) {
+        backgroundAlphaValue.text = value
+    }
+
+    override fun enableBackgroundControls(enable: Boolean) {
+        backgroundAlphaSeekBar.isEnabled = enable
+        backgroundColorBlack.isEnabled = enable
+        backgroundColorTransparent.isEnabled = enable
+    }
+
+    override fun enableNoteControls(enable: Boolean) {
+        noteEditText.isEnabled = enable
+    }
+
+    override fun dismissDialog() {
+        // Notificar al listener que el diálogo se cierra y pasar la configuración final
+        listener?.onSettingsSaved(presenter.getCurrentConfig())
+        dismiss() // Cerrar el diálogo
+    }
+
+    //endregion
 
     companion object {
         const val TAG = "SettingsDialogFragment"
