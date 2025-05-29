@@ -18,17 +18,22 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import androidx.camera.core.ImageProxy // <-- ¡Importación crucial!
+import androidx.camera.core.ImageProxy
+import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 
 class CameraManager(private val context: Context, private val lifecycleOwner: LifecycleOwner) {
 
     private val TAG = "CameraManager"
-    private var preview: Preview? = null
-    private var imageCapture: ImageCapture? = null
-    private var cameraProvider: ProcessCameraProvider? = null
-    private var cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var imageCaptureCallback: ImageCaptureCallback? = null
+    private var currentAspectRatio: Int = AspectRatio.RATIO_4_3 // Valor predeterminado
+
+
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var preview: Preview? = null
+    private var imageCapture: ImageCapture? = null
+    private val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
 
     fun setImageCaptureCallback(callback: ImageCaptureCallback) {
         this.imageCaptureCallback = callback
@@ -36,24 +41,31 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
     // No necesitas el 'display' lazy si solo lo usas para setTargetRotation una vez en takePhoto
     // val display: Display? by lazy { ... }
 
-    fun startCamera(previewView: PreviewView) {
+    fun startCamera(previewView: PreviewView, aspectRatio: Int = AspectRatio.RATIO_4_3) {
+        this.currentAspectRatio = aspectRatio // Guarda la relación de aspecto
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
+            // Mapea nuestros ratios a los de CameraX para la vista previa y captura
+            val cameraXAspectRatio = when (currentAspectRatio) {
+                CameraRatios.RATIO_4_3 -> AspectRatio.RATIO_4_3
+                CameraRatios.RATIO_16_9 -> AspectRatio.RATIO_16_9
+                CameraRatios.RATIO_1_1 -> AspectRatio.RATIO_4_3 // Para 1:1, captura en 4:3 y recorta después
+                else -> AspectRatio.RATIO_4_3 // Valor por defecto seguro
+            }
+
             preview = Preview.Builder()
+                .setTargetAspectRatio(cameraXAspectRatio) // Aplica la relación de aspecto de CameraX
                 .build()
                 .also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
 
-            // Aquí debes usar el display.rotation del previewView, no del WindowManager
-            // ya que CameraX lo gestiona internamente para la Preview
 
             imageCapture = ImageCapture.Builder()
-                // Asegúrate de que el ratio de captura coincida con tu PreviewView si quieres fidelidad total
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3) // O AspectRatio.RATIO_16_9, o AspectRatio.RATIO_16_9
+                .setTargetAspectRatio(cameraXAspectRatio) // Aplica la relación de aspecto de CameraX
                 .setTargetRotation(previewView.display.rotation)
                 .build()
 
@@ -65,13 +77,27 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
                     preview,
                     imageCapture
                 )
-                Log.d(TAG, "Cámara iniciada correctamente.")
+                Log.d(TAG, "Cámara iniciada correctamente con ratio (CameraX): $cameraXAspectRatio")
+                // Ajusta el layout de PreviewView para reflejar 1:1 si es necesario visualmente
+                // Esto es más un ajuste de la UI en MainActivity, no del CameraManager
             } catch (exc: Exception) {
                 Log.e(TAG, "Vinculación de caso de uso fallida", exc)
             }
         }, ContextCompat.getMainExecutor(context))
     }
 
+    fun setAspectRatio(previewView: PreviewView, newAspectRatio: Int) {
+        if (newAspectRatio != currentAspectRatio) {
+            currentAspectRatio = newAspectRatio
+            // Desvincula y vuelve a vincular para aplicar el nuevo ratio
+            cameraProvider?.unbindAll()
+            startCamera(previewView, currentAspectRatio)
+            Log.d(TAG, "Relación de aspecto cambiada a: $newAspectRatio")
+        }
+    }
+    fun getDesiredOutputAspectRatio(): Int {
+        return currentAspectRatio
+    }
     // MODIFICADO: takePhoto ahora recibe ImageCaptureCallback con un ImageProxy
     fun takePhoto(callback: ImageCaptureCallback) {
         val imageCapture = imageCapture ?: run {
@@ -81,29 +107,28 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
         }
 
         // Usamos takePicture(executor, callback) para obtener un ImageProxy
-        imageCapture.takePicture(
-            cameraExecutor, // Ejecuta en el hilo del CameraExecutor
+        imageCapture?.takePicture(
+            ContextCompat.getMainExecutor(context),
             object : ImageCapture.OnImageCapturedCallback() {
-                override fun onError(exc: ImageCaptureException) {
-                    Log.e(TAG, "Error al tomar la foto: ${exc.message}", exc)
-                    callback.onError(exc.message ?: "Error desconocido al tomar foto.")
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    callback.onImageCaptured(image)
                 }
 
-                override fun onCaptureSuccess(image: ImageProxy) {
-                    Log.d(TAG, "Foto capturada como ImageProxy: ${image.format}, ${image.width}x${image.height}")
-                    // Pasamos el ImageProxy al callback. ImageProcessor lo procesará y cerrará.
-                    callback.onImageCaptured(image) // <-- Nuevo método para ImageCaptureCallback
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG, "Error al tomar foto: ${exception.message}", exception)
+                    callback.onError("Error al tomar foto: ${exception.message}")
                 }
             }
         )
     }
 
     fun shutdown() {
-        cameraExecutor.shutdown()
-        Log.d(TAG, "Executor de cámara apagado.")
+        cameraProvider?.unbindAll()
+        Log.d(TAG, "CameraManager cerrado.")
     }
 
     companion object {
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private const val TAG = "CameraManager"
     }
 }

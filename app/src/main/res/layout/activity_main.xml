@@ -11,22 +11,83 @@
         android:id="@+id/viewFinder"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintDimensionRatio="H,3:4" app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintDimensionRatio="H,3:4"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:background="@android:color/black"/> <View
-    android:id="@+id/viewFlashEffect"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/white"
-    android:alpha="0.0"
-    android:visibility="gone"
-    app:layout_constraintTop_toTopOf="parent"
-    app:layout_constraintBottom_toBottomOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintEnd_toEndOf="parent"/>
+        android:background="@android:color/black"/>
 
+    <LinearLayout
+        android:id="@+id/ratioButtonsContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/rounded_background_dark_translucent" android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"
+        android:elevation="4dp">
+
+        <Button
+            android:id="@+id/ratioButton4_3"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="4:3"
+            android:background="@drawable/selector_ratio_button" android:textColor="@color/selector_ratio_text_color" android:textStyle="bold"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="4dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:tag="RATIO_4_3"/>
+        <Button
+            android:id="@+id/ratioButton16_9"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="16:9"
+            android:background="@drawable/selector_ratio_button"
+            android:textColor="@color/selector_ratio_text_color"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="4dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:tag="RATIO_16_9"/>
+
+        <Button
+            android:id="@+id/ratioButton1_1"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="1:1"
+            android:background="@drawable/selector_ratio_button"
+            android:textColor="@color/selector_ratio_text_color"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:tag="RATIO_1_1"/>
+    </LinearLayout>
+    <View
+        android:id="@+id/viewFlashEffect"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/white"
+        android:alpha="0.0"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
     <TextView
         android:id="@+id/textViewLocationDisplay"
         android:layout_width="0dp"
@@ -42,10 +103,11 @@
 
     <Button
         android:id="@+id/cameraCaptureButton"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
         android:layout_marginBottom="32dp"
-        android:background="@drawable/ic_camera_button" app:layout_constraintBottom_toBottomOf="parent"
+        android:background="@drawable/circle_capture_button"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
@@ -55,8 +117,10 @@
         android:layout_height="48dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="32dp"
-        android:background="@drawable/ic_settings" app:layout_constraintBottom_toBottomOf="parent"
+        android:background="@drawable/ic_settings"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
 
     <ImageView
         android:id="@+id/imageViewThumbnail"

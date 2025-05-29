@@ -20,6 +20,7 @@ import java.io.OutputStream
 import java.nio.ByteBuffer // <-- ¡Importación crucial!
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 
 class ImageProcessor(private val contentResolver: ContentResolver) {
 
@@ -29,7 +30,8 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
     fun processAndSaveImage(
         imageProxy: ImageProxy, // <--- EL PARÁMETRO DEBE SER ImageProxy
         locationData: LocationData?,
-        textOverlayConfig: TextOverlayConfig
+        textOverlayConfig: TextOverlayConfig,
+        desiredOutputAspectRatio: Int
     ): Uri? {
         var outputStream: OutputStream? = null
         try {
@@ -38,16 +40,21 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
 
             // La rotación basada en imageProxy.imageInfo.rotationDegrees es correcta
             val rotatedBitmap = rotateBitmap(originalBitmap, imageProxy.imageInfo.rotationDegrees)
+            // APLICAR RECORTE 1:1 SI SE DESEABA
 
-            // Dibuja el texto de ubicación en el bitmap
-            val bitmapWithOverlay = textOverlayManager.drawTextOverlay(rotatedBitmap, locationData, textOverlayConfig)
+            val finalBitmap = if (desiredOutputAspectRatio == CameraRatios.RATIO_1_1) {
+                cropBitmapToSquare(rotatedBitmap) // ¡NUEVO MÉTODO!
+            } else {
+                rotatedBitmap
+            }
+
+            val bitmapWithOverlay = textOverlayManager.drawTextOverlay(finalBitmap, locationData, textOverlayConfig)
 
             // Guarda la imagen modificada
             val contentValues = android.content.ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
                 put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000)
-                // Usar RELATIVE_PATH para Android 10+
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ReplanteosApp")
             }
 
@@ -66,9 +73,7 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
             Log.e(TAG, "Error al procesar y guardar la imagen: ${e.message}", e)
             return null
         } finally {
-            // ¡MUY IMPORTANTE! Cerrar el ImageProxy cuando hayas terminado con él.
-            // Esta llamada libera los recursos de memoria.
-            imageProxy.close() // <--- ASEGURARSE DE QUE ESTO SE EJECUTE
+            imageProxy.close()
             outputStream?.close()
         }
     }
@@ -116,7 +121,16 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
             }
         }
     }
+    private fun cropBitmapToSquare(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val size = Math.min(width, height) // El lado más corto será el tamaño del cuadrado
 
+        val x = (width - size) / 2
+        val y = (height - size) / 2
+
+        return Bitmap.createBitmap(bitmap, x, y, size, size)
+    }
     companion object {
         private const val TAG = "ImageProcessor"
     }

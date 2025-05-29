@@ -16,6 +16,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
+import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 
 // Importaciones de tus managers (Modelos)
 import com.example.replanteosapp.managers.CameraManager
@@ -32,6 +33,7 @@ import com.example.replanteosapp.presenters.MainPresenter
 import com.example.replanteosapp.data.TextOverlayConfig // Todavía necesitamos esta clase de datos
 import androidx.activity.result.IntentSenderRequest // Nueva importación
 import androidx.activity.result.contract.ActivityResultContracts // Nueva importación
+import androidx.camera.core.AspectRatio
 import com.example.replanteosapp.R
 import com.google.android.gms.common.api.ResolvableApiException
 
@@ -44,6 +46,9 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
     private lateinit var viewFlashEffect: View
     private lateinit var textViewLocationDisplay: TextView
     private lateinit var settingsButton: Button
+    private lateinit var ratioButton4_3: Button
+    private lateinit var ratioButton16_9: Button
+    private lateinit var ratioButton1_1: Button
 
     // Referencia al Presenter
     private lateinit var presenter: MainContract.Presenter
@@ -72,6 +77,11 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         cameraCaptureButton.isEnabled = false
         textViewLocationDisplay.text = "Buscando ubicación..."
 
+        // Inicializar botones de ratio
+        ratioButton4_3 = findViewById(R.id.ratioButton4_3)
+        ratioButton16_9 = findViewById(R.id.ratioButton16_9)
+        ratioButton1_1 = findViewById(R.id.ratioButton1_1)
+
         // 2. Inicialización del Presenter
         // PASAMOS LAS DEPENDENCIAS (MANAGERS) AL PRESENTER.
         // Aquí es donde un futuro sistema de Inyección de Dependencias (DI) brillaría.
@@ -89,6 +99,11 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         cameraCaptureButton.setOnClickListener { presenter.onCaptureButtonClick() }
         settingsButton.setOnClickListener { presenter.onSettingsButtonClick() }
 
+        ratioButton4_3.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_4_3) }
+        ratioButton16_9.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_16_9) }
+        ratioButton1_1.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_1_1) }
+
+
         // Notificar al Presenter que la Vista ha sido creada
         presenter.onViewCreated()
     }
@@ -97,6 +112,7 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         super.onResume()
         // Notificar al Presenter que la Vista se reanuda
         presenter.onResume()
+
     }
 
     override fun onPause() {
@@ -150,8 +166,8 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         }
     }
 
-    override fun startCameraPreview() {
-        presenter.startCamera(viewFinder)
+    override fun startCameraPreview(aspectRatio: Int) {
+        presenter.startCamera(viewFinder, aspectRatio)
     }
 
     override fun showPermissionsDeniedMessage() {
@@ -177,10 +193,23 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         viewFlashEffect.alpha = 0f // Asegurarse de que esté completamente transparente
     }
 
-
-
     override fun hideLocationText() { // <-- ¡Nuevo método!
         textViewLocationDisplay.isVisible = false
+    }
+
+    override fun setSelectedRatioButton(selectedRatio: Int) {
+        // Deselecciona todos los botones primero
+        ratioButton4_3.isSelected = false
+        ratioButton16_9.isSelected = false
+        ratioButton1_1.isSelected = false
+
+        // Selecciona el botón correcto
+        when (selectedRatio) {
+            CameraRatios.RATIO_4_3 -> ratioButton4_3.isSelected = true
+            CameraRatios.RATIO_16_9 -> ratioButton16_9.isSelected = true
+            CameraRatios.RATIO_1_1 -> ratioButton1_1.isSelected = true
+            // Puedes añadir más casos si tienes otros ratios
+        }
     }
 
     // Puedes dejar esta constante aquí o moverla a un Companion object del Presenter si es más lógica de Presenter.

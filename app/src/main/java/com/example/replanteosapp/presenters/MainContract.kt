@@ -17,12 +17,13 @@ interface MainContract {
         fun showFlashEffect()
         fun showToast(message: String)
         fun showLocationSettingsDialog(resolvableApiException: com.google.android.gms.common.api.ResolvableApiException)
-        fun startCameraPreview()
         fun showPermissionsDeniedMessage()
         fun updateSettingsButtonState(enabled: Boolean)
 
         fun hideFlashEffect()
         fun hideLocationText()
+        fun startCameraPreview(aspectRatio: Int)
+        fun setSelectedRatioButton(selectedRatio: Int)
 
     }
 
@@ -39,6 +40,8 @@ interface MainContract {
         fun onPermissionsResult(permissionsGranted: Boolean) // Resultado de la solicitud de permisos
         fun onSettingsButtonClick() // Cuando el usuario pulsa el botón de ajustes
         fun onSettingsDialogClosed(newConfig: TextOverlayConfig) // Cuando el diálogo de ajustes devuelve una nueva configuración
-        fun startCamera(previewView: PreviewView)
+
+        fun startCamera(previewView: PreviewView, aspectRatio: Int) // MODIFICADO: Pasa la relación de aspecto
+        fun onRatioButtonClicked(aspectRatio: Int)
     }
 }

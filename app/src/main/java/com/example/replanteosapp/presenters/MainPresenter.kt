@@ -6,7 +6,9 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.camera.core.AspectRatio // Importación necesaria para AspectRatio
 import androidx.camera.view.PreviewView
+import com.example.replanteosapp.R
 import com.example.replanteosapp.data.LocationData
 import com.example.replanteosapp.data.TextOverlayConfig
 import com.example.replanteosapp.managers.CameraManager
@@ -30,12 +32,19 @@ class MainPresenter(
     private val geocoderService: GeocoderService,
     private val locationTracker: LocationTracker,
     private val imageProcessor: ImageProcessor,
-    private val textOverlayManager: TextOverlayManager
+    private val textOverlayManager: TextOverlayManager,
+    // currentCameraAspectRatio no debería ser un parámetro del constructor si se inicializa aquí.
+    // Debería ser una propiedad de la clase.
+    // private var currentCameraAspectRatio: Int = AspectRatio.RATIO_4_3 // <--- ELIMINA ESTO DE AQUÍ
 ) : MainContract.Presenter {
 
     private var lastKnownLocationData: LocationData? = null
     private var currentTextOverlayConfig: TextOverlayConfig = TextOverlayConfig()
     private lateinit var photoWorkflowManager: PhotoWorkflowManager
+    private var previewView: PreviewView? = null
+
+    // Iniciliza currentCameraAspectRatio como propiedad de la clase
+    private var currentCameraAspectRatio: Int = AspectRatio.RATIO_4_3 // <--- ESTO ES CORRECTO AQUÍ
 
     init {
         photoWorkflowManager = PhotoWorkflowManager(cameraManager, locationTracker, imageProcessor)
@@ -80,8 +89,7 @@ class MainPresenter(
                 Handler(Looper.getMainLooper()).post {
                     view?.showToast("Foto guardada con ubicación.")
                     view?.showThumbnail(imageUri)
-                    // ASEGURAMOS QUE EL TEXTO DE UBICACIÓN SE VUELVA A MOSTRAR AQUÍ
-                    updateLocationDisplayText(locationData) // Usa la ubicación de la foto si disponible, sino la última conocida.
+                    updateLocationDisplayText(locationData)
                     Log.i(TAG, "Flujo de foto completado exitosamente.")
                 }
             }
@@ -90,8 +98,7 @@ class MainPresenter(
                 Handler(Looper.getMainLooper()).post {
                     view?.showToast("Error en el procesamiento de la foto: $errorMessage")
                     view?.hideThumbnail()
-                    // ASEGURAMOS QUE EL TEXTO DE UBICACIÓN SE VUELVA A MOSTRAR AQUÍ
-                    updateLocationDisplayText(lastKnownLocationData) // Si hubo error, usa la última ubicación conocida
+                    updateLocationDisplayText(lastKnownLocationData)
                     Log.e(TAG, "Error en el flujo de foto: $errorMessage")
                 }
             }
@@ -99,11 +106,10 @@ class MainPresenter(
                 Handler(Looper.getMainLooper()).post {
                     view?.showToast("Foto guardada, pero sin ubicación en la imagen.")
                     view?.showThumbnail(imageUri)
-                    updateLocationDisplayText(lastKnownLocationData) // Vuelve a mostrar la última ubicación conocida
+                    updateLocationDisplayText(lastKnownLocationData)
                     Log.w(TAG, "Foto guardada, pero la ubicación no pudo ser dibujada.")
                 }
             }
-
         })
     }
 
@@ -141,13 +147,10 @@ class MainPresenter(
             return
         }
 
-        view?.hideLocationText() // Ocultar el texto de ubicación
-        view?.showFlashEffect()
+        view?.hideLocationText()
+        view?.showFlashEffect() // Solo muestra, la vista lo ocultará con la animación
 
-        // 3. Pasa la configuración actual al PhotoWorkflowManager
         photoWorkflowManager.setTextOverlayConfig(currentTextOverlayConfig)
-
-        // 4. Inicia el flujo de captura de la foto
         photoWorkflowManager.executePhotoCaptureWorkflow(lastKnownLocationData)
     }
 
@@ -167,7 +170,7 @@ class MainPresenter(
 
     override fun onPermissionsResult(permissionsGranted: Boolean) {
         if (permissionsGranted) {
-            view?.startCameraPreview()
+            view?.startCameraPreview(currentCameraAspectRatio)
             locationTracker.startLocationUpdates(false)
         } else {
             view?.showPermissionsDeniedMessage()
@@ -175,9 +178,28 @@ class MainPresenter(
         }
     }
 
+    override fun startCamera(previewView: PreviewView, aspectRatio: Int) {
+        this.previewView = previewView // Guarda la referencia
+        cameraManager.startCamera(previewView, aspectRatio)
+    }
+
+    override fun onRatioButtonClicked(aspectRatio: Int) {
+        if (aspectRatio != currentCameraAspectRatio) {
+            currentCameraAspectRatio = aspectRatio
+            view?.setSelectedRatioButton(aspectRatio)
+
+            previewView?.let { // Usa la propiedad guardada
+                cameraManager.setAspectRatio(it, currentCameraAspectRatio)
+            } ?: run {
+                Log.e(TAG, "Error: PreviewView no disponible para cambiar el ratio.")
+                view?.showToast("Error al cambiar la relación de aspecto de la cámara.")
+            }
+        }
+    }
+
     override fun onSettingsButtonClick() {
         view?.let { actualView ->
-            if (actualView is MainActivity) {
+            if (actualView is MainActivity) { // Safe cast para acceder a supportFragmentManager
                 val settingsDialog = SettingsDialogFragment(currentTextOverlayConfig.copy())
                 settingsDialog.setListener(object : SettingsDialogFragment.SettingsDialogListener {
                     override fun onSettingsSaved(newConfig: TextOverlayConfig) {
@@ -193,10 +215,6 @@ class MainPresenter(
         this.currentTextOverlayConfig = newConfig
         photoWorkflowManager.setTextOverlayConfig(newConfig)
         updateLocationDisplayText(lastKnownLocationData)
-    }
-
-    override fun startCamera(previewView: PreviewView) {
-        cameraManager.startCamera(previewView)
     }
 
     private fun updateLocationDisplayText(locationData: LocationData?) {
@@ -218,15 +236,21 @@ class MainPresenter(
             if (currentTextOverlayConfig.enableNote && currentTextOverlayConfig.noteText.isNotBlank()) {
                 displayText.append("\nNota: ").append(currentTextOverlayConfig.noteText)
             }
-            view?.showLocationText(displayText.toString()) // <-- ESTO DEBERÍA HACERLO VISIBLE
+            view?.showLocationText(displayText.toString())
         } ?: run {
-            // Si locationData es null, muestra un mensaje predeterminado y asegúrate de que sea visible
             view?.showLocationText("Obteniendo ubicación...")
-            view?.enableCaptureButton(false) // Deshabilita el botón si no hay ubicación
+            view?.enableCaptureButton(false)
         }
     }
 
     companion object {
         private const val TAG = "MainPresenter"
+        // Definimos nuestras propias constantes de relación de aspecto aquí
+        object CameraRatios {
+            const val RATIO_4_3 = 0 // Coincide con AspectRatio.RATIO_4_3
+            const val RATIO_16_9 = 1 // Coincide con AspectRatio.RATIO_16_9
+            const val RATIO_1_1 = 2 // Nuestro propio valor para 1:1
+            // Podemos añadir otros si es necesario, como RATIO_FULL (pantalla completa), etc.
+        }
     }
 }
