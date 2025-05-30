@@ -1,11 +1,8 @@
 // MainActivity.kt
 package com.example.replanteosapp.ui // Mueve MainActivity al paquete 'ui'
 
-import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Intent
+
 import android.content.IntentSender
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -22,7 +19,6 @@ import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 import com.example.replanteosapp.managers.CameraManager
 import com.example.replanteosapp.managers.LocationTracker
 import com.example.replanteosapp.managers.PermissionManager
-import com.example.replanteosapp.managers.PhotoWorkflowManager
 import com.example.replanteosapp.services.GeocoderService
 import com.example.replanteosapp.services.ImageProcessor
 import com.example.replanteosapp.managers.TextOverlayManager
@@ -30,12 +26,14 @@ import com.example.replanteosapp.managers.TextOverlayManager
 // Importaciones de los nuevos Presenters y Contratos
 import com.example.replanteosapp.presenters.MainContract
 import com.example.replanteosapp.presenters.MainPresenter
-import com.example.replanteosapp.data.TextOverlayConfig // Todavía necesitamos esta clase de datos
 import androidx.activity.result.IntentSenderRequest // Nueva importación
-import androidx.activity.result.contract.ActivityResultContracts // Nueva importación
-import androidx.camera.core.AspectRatio
+import androidx.activity.result.contract.ActivityResultContracts // Nueva importació
 import com.example.replanteosapp.R
 import com.google.android.gms.common.api.ResolvableApiException
+
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
+
 
 class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implementa la interfaz de la Vista!
 
@@ -48,7 +46,6 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
     private lateinit var settingsButton: Button
     private lateinit var ratioButton4_3: Button
     private lateinit var ratioButton16_9: Button
-    private lateinit var ratioButton1_1: Button
 
     // Referencia al Presenter
     private lateinit var presenter: MainContract.Presenter
@@ -80,7 +77,6 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         // Inicializar botones de ratio
         ratioButton4_3 = findViewById(R.id.ratioButton4_3)
         ratioButton16_9 = findViewById(R.id.ratioButton16_9)
-        ratioButton1_1 = findViewById(R.id.ratioButton1_1)
 
         // 2. Inicialización del Presenter
         // PASAMOS LAS DEPENDENCIAS (MANAGERS) AL PRESENTER.
@@ -101,10 +97,8 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
 
         ratioButton4_3.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_4_3) }
         ratioButton16_9.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_16_9) }
-        ratioButton1_1.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_1_1) }
 
 
-        // Notificar al Presenter que la Vista ha sido creada
         presenter.onViewCreated()
     }
 
@@ -201,16 +195,15 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         // Deselecciona todos los botones primero
         ratioButton4_3.isSelected = false
         ratioButton16_9.isSelected = false
-        ratioButton1_1.isSelected = false
 
         // Selecciona el botón correcto
         when (selectedRatio) {
             CameraRatios.RATIO_4_3 -> ratioButton4_3.isSelected = true
             CameraRatios.RATIO_16_9 -> ratioButton16_9.isSelected = true
-            CameraRatios.RATIO_1_1 -> ratioButton1_1.isSelected = true
             // Puedes añadir más casos si tienes otros ratios
         }
     }
+
 
     // Puedes dejar esta constante aquí o moverla a un Companion object del Presenter si es más lógica de Presenter.
     companion object {

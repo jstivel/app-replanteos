@@ -2,7 +2,6 @@
 package com.example.replanteosapp.managers
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
@@ -13,18 +12,12 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import androidx.camera.core.ImageProxy
 import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 
 class CameraManager(private val context: Context, private val lifecycleOwner: LifecycleOwner) {
 
-    private val TAG = "CameraManager"
-    private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
     private var imageCaptureCallback: ImageCaptureCallback? = null
     private var currentAspectRatio: Int = AspectRatio.RATIO_4_3 // Valor predeterminado
 
@@ -34,16 +27,17 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
     private var imageCapture: ImageCapture? = null
     private val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
+    private var currentCameraXAspectRatio: Int = AspectRatio.RATIO_4_3 // El AspectRatio real de CameraX
+
+
 
     fun setImageCaptureCallback(callback: ImageCaptureCallback) {
         this.imageCaptureCallback = callback
     }
-    // No necesitas el 'display' lazy si solo lo usas para setTargetRotation una vez en takePhoto
-    // val display: Display? by lazy { ... }
-
     fun startCamera(previewView: PreviewView, aspectRatio: Int = AspectRatio.RATIO_4_3) {
         this.currentAspectRatio = aspectRatio // Guarda la relación de aspecto
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+
 
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
@@ -52,20 +46,18 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
             val cameraXAspectRatio = when (currentAspectRatio) {
                 CameraRatios.RATIO_4_3 -> AspectRatio.RATIO_4_3
                 CameraRatios.RATIO_16_9 -> AspectRatio.RATIO_16_9
-                CameraRatios.RATIO_1_1 -> AspectRatio.RATIO_4_3 // Para 1:1, captura en 4:3 y recorta después
                 else -> AspectRatio.RATIO_4_3 // Valor por defecto seguro
             }
-
+            this.currentCameraXAspectRatio = cameraXAspectRatio
             preview = Preview.Builder()
-                .setTargetAspectRatio(cameraXAspectRatio) // Aplica la relación de aspecto de CameraX
+                .setTargetAspectRatio(currentCameraXAspectRatio) // Aplica la relación de aspecto de CameraX
                 .build()
                 .also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
 
-
             imageCapture = ImageCapture.Builder()
-                .setTargetAspectRatio(cameraXAspectRatio) // Aplica la relación de aspecto de CameraX
+                .setTargetAspectRatio(currentCameraXAspectRatio)
                 .setTargetRotation(previewView.display.rotation)
                 .build()
 
@@ -89,14 +81,21 @@ class CameraManager(private val context: Context, private val lifecycleOwner: Li
     fun setAspectRatio(previewView: PreviewView, newAspectRatio: Int) {
         if (newAspectRatio != currentAspectRatio) {
             currentAspectRatio = newAspectRatio
-            // Desvincula y vuelve a vincular para aplicar el nuevo ratio
             cameraProvider?.unbindAll()
-            startCamera(previewView, currentAspectRatio)
+            startCamera(previewView, currentAspectRatio) // Llama a startCamera con el nuevo ratio
             Log.d(TAG, "Relación de aspecto cambiada a: $newAspectRatio")
         }
     }
+
     fun getDesiredOutputAspectRatio(): Int {
         return currentAspectRatio
+    }
+    fun getCameraXAspectRatioFloat(): Float {
+        return when (currentCameraXAspectRatio) {
+            AspectRatio.RATIO_4_3 -> 4f / 3f
+            AspectRatio.RATIO_16_9 -> 16f / 9f
+            else -> 4f / 3f // Por defecto
+        }
     }
     // MODIFICADO: takePhoto ahora recibe ImageCaptureCallback con un ImageProxy
     fun takePhoto(callback: ImageCaptureCallback) {

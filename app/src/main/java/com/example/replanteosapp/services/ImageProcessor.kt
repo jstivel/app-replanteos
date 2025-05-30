@@ -38,15 +38,8 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
             val originalBitmap = imageProxyToBitmap(imageProxy)
                 ?: throw IOException("No se pudo convertir ImageProxy a Bitmap.")
 
-            // La rotación basada en imageProxy.imageInfo.rotationDegrees es correcta
             val rotatedBitmap = rotateBitmap(originalBitmap, imageProxy.imageInfo.rotationDegrees)
-            // APLICAR RECORTE 1:1 SI SE DESEABA
-
-            val finalBitmap = if (desiredOutputAspectRatio == CameraRatios.RATIO_1_1) {
-                cropBitmapToSquare(rotatedBitmap) // ¡NUEVO MÉTODO!
-            } else {
-                rotatedBitmap
-            }
+            val finalBitmap = rotatedBitmap
 
             val bitmapWithOverlay = textOverlayManager.drawTextOverlay(finalBitmap, locationData, textOverlayConfig)
 
@@ -121,16 +114,7 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
             }
         }
     }
-    private fun cropBitmapToSquare(bitmap: Bitmap): Bitmap {
-        val width = bitmap.width
-        val height = bitmap.height
-        val size = Math.min(width, height) // El lado más corto será el tamaño del cuadrado
 
-        val x = (width - size) / 2
-        val y = (height - size) / 2
-
-        return Bitmap.createBitmap(bitmap, x, y, size, size)
-    }
     companion object {
         private const val TAG = "ImageProcessor"
     }

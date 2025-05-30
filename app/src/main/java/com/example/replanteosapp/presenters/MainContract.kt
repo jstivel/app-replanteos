@@ -25,6 +25,7 @@ interface MainContract {
         fun startCameraPreview(aspectRatio: Int)
         fun setSelectedRatioButton(selectedRatio: Int)
 
+
     }
 
     // Define lo que el PRESENTER (MainPresenter) debe poder hacer.
@@ -43,5 +44,7 @@ interface MainContract {
 
         fun startCamera(previewView: PreviewView, aspectRatio: Int) // MODIFICADO: Pasa la relación de aspecto
         fun onRatioButtonClicked(aspectRatio: Int)
+
+        fun onPreviewViewLayoutReady()
     }
 }
