@@ -25,6 +25,8 @@ interface MainContract {
         fun startCameraPreview(aspectRatio: Int)
         fun setSelectedRatioButton(selectedRatio: Int)
 
+        fun getPreviewView(): PreviewView
+        fun setPreviewViewScaleType(scaleType: PreviewView.ScaleType)
 
     }
 

@@ -4,34 +4,34 @@ import android.content.ContentResolver
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
-import androidx.camera.core.ImageProxy // <-- ¡Importación crucial!
+import androidx.camera.core.ImageProxy
 import com.example.replanteosapp.data.LocationData
 import com.example.replanteosapp.data.TextOverlayConfig
 import com.example.replanteosapp.managers.TextOverlayManager
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
-import java.nio.ByteBuffer // <-- ¡Importación crucial!
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
-import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
+// Ya no necesitas importar CameraRatios si no se usa para lógica de recorte aquí
+// import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 
 class ImageProcessor(private val contentResolver: ContentResolver) {
 
-    private val textOverlayManager = TextOverlayManager() // Esto está bien ahora, TextOverlayManager no necesita Context
+    private val textOverlayManager = TextOverlayManager()
 
-    // MODIFICADO: Ahora recibe un ImageProxy. ESTA ES LA CLAVE.
     fun processAndSaveImage(
-        imageProxy: ImageProxy, // <--- EL PARÁMETRO DEBE SER ImageProxy
+        imageProxy: ImageProxy,
         locationData: LocationData?,
         textOverlayConfig: TextOverlayConfig,
-        desiredOutputAspectRatio: Int
+        // Este parámetro 'desiredOutputAspectRatio' ya no se usa para recorte en ImageProcessor
+        // Podrías eliminarlo si no lo pasas desde PhotoWorkflowManager
+        desiredOutputAspectRatio: Int // Se mantiene por compatibilidad si PhotoWorkflowManager lo sigue enviando.
     ): Uri? {
         var outputStream: OutputStream? = null
         try {
@@ -39,11 +39,12 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
                 ?: throw IOException("No se pudo convertir ImageProxy a Bitmap.")
 
             val rotatedBitmap = rotateBitmap(originalBitmap, imageProxy.imageInfo.rotationDegrees)
+
+            // NO HAY LÓGICA DE RECORTE AQUÍ. El bitmap final es el rotado.
             val finalBitmap = rotatedBitmap
 
             val bitmapWithOverlay = textOverlayManager.drawTextOverlay(finalBitmap, locationData, textOverlayConfig)
 
-            // Guarda la imagen modificada
             val contentValues = android.content.ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
@@ -71,7 +72,6 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
         }
     }
 
-    // Helper para convertir ImageProxy a Bitmap
     private fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
         val planeProxy = image.planes[0]
         val buffer: ByteBuffer = planeProxy.buffer
@@ -80,40 +80,24 @@ class ImageProcessor(private val contentResolver: ContentResolver) {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
 
-    // Helper para rotar el bitmap si es necesario
     private fun rotateBitmap(bitmap: Bitmap, rotationDegrees: Int): Bitmap {
         if (rotationDegrees == 0) return bitmap
 
         val matrix = Matrix()
         matrix.postRotate(rotationDegrees.toFloat())
 
-        // Calcula el nuevo bounding box para el bitmap rotado
         val rotatedRect = RectF(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat())
         matrix.mapRect(rotatedRect)
 
-        val newWidth = rotatedRect.width().toInt()
-        val newHeight = rotatedRect.height().toInt()
+        // No es estrictamente necesario newWidth y newHeight si solo usas createBitmap con matrix
+        // val newWidth = rotatedRect.width().toInt()
+        // val newHeight = rotatedRect.height().toInt()
 
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
-    // Esta función no se llama en el flujo principal, es solo para depuración si la necesitas
-    private fun saveBitmapToTempFile(bitmap: Bitmap, prefix: String): Uri? {
-        val name = prefix + SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis())
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "$name.jpg")
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/DEBUG_ReplanteosApp") // Directorio separado para depuración
-        }
-
-        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = contentResolver.insert(collection, contentValues)
-        return uri?.also {
-            contentResolver.openOutputStream(it)?.use { outputStream ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-            }
-        }
-    }
+    // Este método saveBitmapToTempFile y cropBitmapToSquare (si existiera) ya no se usan ni son necesarios
+    // private fun saveBitmapToTempFile(bitmap: Bitmap, prefix: String): Uri? { /* ... */ }
 
     companion object {
         private const val TAG = "ImageProcessor"

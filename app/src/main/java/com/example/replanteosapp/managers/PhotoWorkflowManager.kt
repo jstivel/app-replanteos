@@ -16,7 +16,7 @@ class PhotoWorkflowManager(
 
 ) {
     private var workflowCallback: PhotoWorkflowCallback? = null
-    private var currentTextOverlayConfig: TextOverlayConfig? = null
+    private var textOverlayConfig: TextOverlayConfig = TextOverlayConfig()
 
 
     fun setWorkflowCallback(callback: PhotoWorkflowCallback) {
@@ -24,27 +24,29 @@ class PhotoWorkflowManager(
     }
 
     fun setTextOverlayConfig(config: TextOverlayConfig) {
-        this.currentTextOverlayConfig = config // Actualiza la configuración cuando se le pasa
+        this.textOverlayConfig = config
     }
 
-    fun executePhotoCaptureWorkflow(locationData: LocationData?) {
+    fun executePhotoCaptureWorkflow(locationData: LocationData?, captureAspectRatio: Int) {
         cameraManager.takePhoto(object : ImageCaptureCallback {
             override fun onImageCaptured(image: ImageProxy) {
                 // Se ha capturado la imagen, ahora procesar y guardar
-                val config = currentTextOverlayConfig ?: TextOverlayConfig() // Usa la configuración actual o una por defecto
+                val config = textOverlayConfig ?: TextOverlayConfig() // Usa la configuración actual o una por defecto
 
                 // Pasa el ratio de salida deseado a ImageProcessor
                 val processedImageUri = imageProcessor.processAndSaveImage(
                     imageProxy = image,
                     locationData = locationData,
                     textOverlayConfig = config,
-                    desiredOutputAspectRatio = cameraManager.getDesiredOutputAspectRatio() // ¡NUEVO!
+                    desiredOutputAspectRatio = cameraManager.getCameraXCaptureAspectRatio()
                 )
 
                 if (processedImageUri != null) {
-                    // Si la imagen se procesó y guardó con éxito, verifica si el texto se dibujó.
-                    // (La lógica para saber si el texto se dibujó ahora está en ImageProcessor).
-                    workflowCallback?.onPhotoProcessed(processedImageUri, locationData)
+                    if (locationData != null) {
+                        workflowCallback?.onPhotoProcessed(processedImageUri, locationData)
+                    } else {
+                        workflowCallback?.onLocationUnavailableForPhoto(processedImageUri)
+                    }
                 } else {
                     // Aquí la URI es null, lo que indica un error general en el procesamiento.
                     workflowCallback?.onPhotoProcessingError("Error desconocido al procesar la foto.")

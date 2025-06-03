@@ -63,10 +63,10 @@
             android:tag="RATIO_16_9"/>
 
         <Button
-            android:id="@+id/ratioButton1_1"
+            android:id="@+id/ratioButtonFull"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
-            android:text="1:1"
+            android:text="FULL"
             android:background="@drawable/selector_ratio_button"
             android:textColor="@color/selector_ratio_text_color"
             android:textStyle="bold"
@@ -75,7 +75,7 @@
             android:paddingEnd="12dp"
             android:clickable="true"
             android:focusable="true"
-            android:tag="RATIO_1_1"/>
+            android:tag="RATIO_DEFAULT"/>
     </LinearLayout>
     <View
         android:id="@+id/viewFlashEffect"

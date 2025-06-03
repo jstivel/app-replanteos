@@ -1,6 +1,4 @@
-// MainActivity.kt
-package com.example.replanteosapp.ui // Mueve MainActivity al paquete 'ui'
-
+package com.example.replanteosapp.ui
 
 import android.content.IntentSender
 import android.net.Uri
@@ -15,7 +13,6 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import com.example.replanteosapp.presenters.MainPresenter.Companion.CameraRatios
 
-// Importaciones de tus managers (Modelos)
 import com.example.replanteosapp.managers.CameraManager
 import com.example.replanteosapp.managers.LocationTracker
 import com.example.replanteosapp.managers.PermissionManager
@@ -23,22 +20,18 @@ import com.example.replanteosapp.services.GeocoderService
 import com.example.replanteosapp.services.ImageProcessor
 import com.example.replanteosapp.managers.TextOverlayManager
 
-// Importaciones de los nuevos Presenters y Contratos
 import com.example.replanteosapp.presenters.MainContract
 import com.example.replanteosapp.presenters.MainPresenter
-import androidx.activity.result.IntentSenderRequest // Nueva importación
-import androidx.activity.result.contract.ActivityResultContracts // Nueva importació
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.replanteosapp.R
 import com.google.android.gms.common.api.ResolvableApiException
-
-import android.view.ViewGroup
-import android.view.ViewTreeObserver
+import androidx.camera.view.PreviewView // Importación necesaria para PreviewView.ScaleType
 
 
-class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implementa la interfaz de la Vista!
+class MainActivity : FragmentActivity(), MainContract.View {
 
-    // Referencias a Vistas UI
-    private lateinit var viewFinder: androidx.camera.view.PreviewView
+    private lateinit var viewFinder: PreviewView // Usar la importación directa
     private lateinit var cameraCaptureButton: Button
     private lateinit var imageViewThumbnail: ImageView
     private lateinit var viewFlashEffect: View
@@ -46,15 +39,13 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
     private lateinit var settingsButton: Button
     private lateinit var ratioButton4_3: Button
     private lateinit var ratioButton16_9: Button
+    private lateinit var ratioButtonFull: Button // Asegúrate de que el ID en XML sea ratioButtonFull
 
-    // Referencia al Presenter
     private lateinit var presenter: MainContract.Presenter
 
     private val locationSettingsLauncher = registerForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult() // Contrato para IntentSender
+        ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        // Este es el callback que se ejecuta cuando se recibe un resultado
-        // Aquí pasamos el resultado al Presenter
         presenter.onLocationSettingsResolutionResult(result.resultCode)
     }
 
@@ -62,7 +53,6 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. Inicialización de Vistas
         viewFinder = findViewById(R.id.viewFinder)
         cameraCaptureButton = findViewById(R.id.cameraCaptureButton)
         imageViewThumbnail = findViewById(R.id.imageViewThumbnail)
@@ -70,65 +60,53 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         textViewLocationDisplay = findViewById(R.id.textViewLocationDisplay)
         settingsButton = findViewById(R.id.settingsButton)
 
-        // Deshabilitar botón de captura al inicio (la lógica de habilitación/deshabilitación será del Presenter)
         cameraCaptureButton.isEnabled = false
         textViewLocationDisplay.text = "Buscando ubicación..."
 
-        // Inicializar botones de ratio
         ratioButton4_3 = findViewById(R.id.ratioButton4_3)
         ratioButton16_9 = findViewById(R.id.ratioButton16_9)
+        ratioButtonFull = findViewById(R.id.ratioButtonFull) // Inicializar el botón "Full"
 
-        // 2. Inicialización del Presenter
-        // PASAMOS LAS DEPENDENCIAS (MANAGERS) AL PRESENTER.
-        // Aquí es donde un futuro sistema de Inyección de Dependencias (DI) brillaría.
         presenter = MainPresenter(
-            this, // La Activity es la View que se pasa al Presenter
+            this,
             PermissionManager(this),
             CameraManager(this, this),
             GeocoderService(this),
-            LocationTracker(this, GeocoderService(this)), // Pasa GeocoderService al LocationTracker
+            LocationTracker(this, GeocoderService(this)),
             ImageProcessor(contentResolver),
             TextOverlayManager()
         )
 
-        // 3. Configuración de Listeners (DELEGANDO AL PRESENTER)
         cameraCaptureButton.setOnClickListener { presenter.onCaptureButtonClick() }
         settingsButton.setOnClickListener { presenter.onSettingsButtonClick() }
 
         ratioButton4_3.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_4_3) }
         ratioButton16_9.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_16_9) }
-
+        ratioButtonFull.setOnClickListener { presenter.onRatioButtonClicked(CameraRatios.RATIO_FULL) } // Llama a RATIO_FULL
 
         presenter.onViewCreated()
     }
 
     override fun onResume() {
         super.onResume()
-        // Notificar al Presenter que la Vista se reanuda
         presenter.onResume()
-
     }
 
     override fun onPause() {
         super.onPause()
-        // Notificar al Presenter que la Vista se pausa
         presenter.onPause()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Notificar al Presenter que la Vista se destruye
         presenter.onDestroy()
     }
 
-
-
-    //region Métodos de la interfaz MainContract.View (implementaciones que el Presenter llama)
-
+    //region Métodos de la interfaz MainContract.View
 
     override fun showLocationText(text: String) {
         textViewLocationDisplay.text = text
-        textViewLocationDisplay.isVisible = true // <-- Asegúrate de que esto esté aquí
+        textViewLocationDisplay.isVisible = true
     }
     override fun enableCaptureButton(enable: Boolean) {
         cameraCaptureButton.isEnabled = enable
@@ -143,14 +121,12 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         imageViewThumbnail.isVisible = false
     }
 
-
     override fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     override fun showLocationSettingsDialog(resolvableApiException: ResolvableApiException) {
         try {
-            // Usamos el nuevo lanzador para iniciar la resolución
             locationSettingsLauncher.launch(
                 IntentSenderRequest.Builder(resolvableApiException.resolution).build()
             )
@@ -173,7 +149,6 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         settingsButton.isEnabled = enabled
     }
 
-    //endregion
     override fun showFlashEffect() {
         viewFlashEffect.apply {
             alpha = 0.9f
@@ -182,30 +157,39 @@ class MainActivity : FragmentActivity(), MainContract.View { // <--- ¡Implement
         }
     }
 
-    override fun hideFlashEffect() { // <-- ¡Nuevo método!
+    override fun hideFlashEffect() {
         viewFlashEffect.isVisible = false
-        viewFlashEffect.alpha = 0f // Asegurarse de que esté completamente transparente
+        viewFlashEffect.alpha = 0f
     }
 
-    override fun hideLocationText() { // <-- ¡Nuevo método!
+    override fun hideLocationText() {
         textViewLocationDisplay.isVisible = false
     }
 
     override fun setSelectedRatioButton(selectedRatio: Int) {
-        // Deselecciona todos los botones primero
         ratioButton4_3.isSelected = false
         ratioButton16_9.isSelected = false
+        ratioButtonFull.isSelected = false // Deselecciona el botón "Full"
 
-        // Selecciona el botón correcto
         when (selectedRatio) {
             CameraRatios.RATIO_4_3 -> ratioButton4_3.isSelected = true
             CameraRatios.RATIO_16_9 -> ratioButton16_9.isSelected = true
-            // Puedes añadir más casos si tienes otros ratios
+            CameraRatios.RATIO_FULL -> ratioButtonFull.isSelected = true // Selecciona el botón "Full"
         }
     }
 
+    override fun getPreviewView(): PreviewView {
+        return viewFinder
+    }
 
-    // Puedes dejar esta constante aquí o moverla a un Companion object del Presenter si es más lógica de Presenter.
+    // ¡NUEVA IMPLEMENTACIÓN DEL MÉTODO!
+    override fun setPreviewViewScaleType(scaleType: PreviewView.ScaleType) {
+        viewFinder.scaleType = scaleType
+        Log.d(TAG, "PreviewView scaleType cambiado a: $scaleType")
+    }
+
+    //endregion
+
     companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_CHECK_SETTINGS = 1001
